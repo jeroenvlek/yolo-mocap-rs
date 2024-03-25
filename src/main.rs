@@ -2,11 +2,10 @@ use opencv::highgui;
 use opencv::prelude::*;
 use opencv::videoio;
 use opencv::videoio::VideoCapture;
-use std::error::Error;
 
 const MAX_CAM_INDEX: i32 = 10;
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> anyhow::Result<()> {
     let camera_index_list = list_cameras()?;
     if camera_index_list.is_empty() {
         panic!("Could not find any camera!");
@@ -38,7 +37,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn list_cameras() -> Result<Vec<i32>, Box<dyn Error>> {
+fn list_cameras() -> anyhow::Result<Vec<i32>> {
     let mut camera_list = Vec::with_capacity(MAX_CAM_INDEX as usize);
     for index in 0..MAX_CAM_INDEX {
         let cam = VideoCapture::new(index, videoio::CAP_ANY)?;

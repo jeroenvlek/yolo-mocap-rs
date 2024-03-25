@@ -6,5 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+anyhow = "1.0.81"
+candle-examples = "0.4.1"
 opencv = { version = "0.89.0", features = ["videoio", "highgui"] }
 rapier2d = "0.18.0"
