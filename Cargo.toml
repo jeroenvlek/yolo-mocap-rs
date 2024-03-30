@@ -7,6 +7,13 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.81"
-candle-examples = "0.4.1"
-opencv = { version = "0.89.0", features = ["videoio", "highgui"] }
-rapier2d = "0.18.0"
+candle-core = {  version = "0.4.1", features = ["cuda"] }
+candle-nn = {  version = "0.4.1", features = ["cuda"] }
+candle-examples = {  version = "0.4.1", features = ["cuda"] }
+hf-hub = { version = "0.3.2", features = ["tokio"] }
+clap = { version = "4.5.3", features = ["derive"] }
+tokio = { version = "1.37.0", features = ["full"] }
+image = "0.24.9"
+nokhwa = "0.10.4"
+candle-transformers = { version = "0.4.1", features = ["cuda"] }
+imageproc = { version = "0.23.0", features = ["display-window"] }
