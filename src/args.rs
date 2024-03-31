@@ -1,6 +1,6 @@
 use clap::Parser;
 
-#[derive(Parser)]
+#[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 pub struct Args {
     /// Run on CPU rather than on GPU.
@@ -11,7 +11,7 @@ pub struct Args {
     #[arg(long)]
     pub model_path: Option<String>,
 
-    #[arg(long, default_value_t = 's')]
+    #[arg(long, default_value_t = 'n')]
     pub model_size: char,
 
     /// Threshold for the model confidence level.
