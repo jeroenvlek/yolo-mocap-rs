@@ -4,12 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-anyhow = "1.0.81"
-candle-core = {  version = "0.4.1", features = ["cuda"] }
-candle-nn = {  version = "0.4.1", features = ["cuda"] }
-candle-examples = {  version = "0.4.1", features = ["cuda"] }
+anyhow = "1.0.86"
+candle-core = {  version = "0.5.0", features = ["cuda"] }
+candle-nn = {  version = "0.5.0", features = ["cuda"] }
+candle-examples = {  version = "0.5.0", features = ["cuda"] }
 hf-hub = { version = "0.3.2", features = ["tokio"] }
 clap = { version = "4.5.3", features = ["derive"] }
 tokio = { version = "1.37.0", features = ["full"] }
-candle-transformers = { version = "0.4.1", features = ["cuda"] }
-opencv = { version = "0.89.0", features = ["videoio", "highgui"] }
+candle-transformers = { version = "0.5.0", features = ["cuda"] }
+opencv = { version = "0.91.3", features = ["videoio", "highgui"] }

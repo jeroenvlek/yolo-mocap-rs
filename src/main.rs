@@ -42,7 +42,7 @@ fn main() -> anyhow::Result<()> {
 
     let camera_index_list = list_cameras()?;
     println!("Found camera list {:?}", camera_index_list);
-    let mut active_cam = 0;
+    let mut active_cam = 2;
     loop {
         let mut cam = VideoCapture::new(camera_index_list[active_cam], videoio::CAP_V4L2)?;
         if !VideoCapture::is_opened(&cam)? {
@@ -52,6 +52,7 @@ fn main() -> anyhow::Result<()> {
         cam.read(&mut frame)?;
 
         let size = frame.size()?;
+        println!("Frame size ({}, {})", size.width, size.height);
         let (new_width, new_height) = {
             // Interpolation method
             if size.width < size.height {
@@ -177,6 +178,7 @@ pub fn annotate_pose(
     let (initial_h, initial_w) = (size.height, size.width);
     let w_ratio = initial_w as f32 / w as f32;
     let h_ratio = initial_h as f32 / h as f32;
+    println!("w_ratio: {}, h_ratio: {}", w_ratio, h_ratio);
     for b in bboxes.iter() {
         println!("{b:?}");
         let xmin = (b.xmin * w_ratio) as i32;
