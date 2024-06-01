@@ -42,7 +42,7 @@ fn main() -> anyhow::Result<()> {
 
     let camera_index_list = list_cameras()?;
     println!("Found camera list {:?}", camera_index_list);
-    let mut active_cam = 2;
+    let mut active_cam = args.cam;
     loop {
         let mut cam = VideoCapture::new(camera_index_list[active_cam], videoio::CAP_V4L2)?;
         if !VideoCapture::is_opened(&cam)? {

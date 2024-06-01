@@ -25,4 +25,8 @@ pub struct Args {
     /// The size for the legend, 0 means no legend.
     #[arg(long, default_value_t = 14)]
     pub legend_size: u32,
+
+    /// The index of the camera to be uses, e.g. 0, 1, 2...
+    #[arg(long, default_value_t = 2)]
+    pub cam: usize,
 }
