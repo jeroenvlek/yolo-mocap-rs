@@ -7,29 +7,35 @@ use opencv::prelude::*;
 use tokio::runtime;
 
 use args::Args;
+use crate::camera_calibration::estimate_camera_matrix;
 
 use crate::pose_estimator::PoseEstimator;
 
 mod args;
 mod model;
 mod pose_estimator;
+mod camera_calibration;
+mod camera;
+mod key_constants;
 
 fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     println!("Args: {:?}", args);
 
-    let rt = runtime::Runtime::new()?;
-    let model_path = rt.block_on(download_model(&args))?;
+    // let rt = runtime::Runtime::new()?;
+    // let model_path = rt.block_on(download_model(&args))?;
+    //
+    // let mut pose_estimator = PoseEstimator::new(
+    //     args.cpu,
+    //     model_path,
+    //     args.model_size,
+    //     args.active_cam,
+    //     args.confidence_threshold,
+    //     args.nms_threshold,
+    // )?;
+    // pose_estimator.run_estimation_loop()?;
+    estimate_camera_matrix(args.active_cam)?;
 
-    let mut pose_estimator = PoseEstimator::new(
-        args.cpu,
-        model_path,
-        args.model_size,
-        args.cam,
-        args.confidence_threshold,
-        args.nms_threshold,
-    )?;
-    pose_estimator.run_estimation_loop()?;
     Ok(())
 }
 

@@ -1,17 +1,17 @@
 use std::path::PathBuf;
 
-use candle_core::{DType, Device, IndexOp, Module, Tensor};
+use candle_core::{Device, DType, IndexOp, Module, Tensor};
 use candle_nn::VarBuilder;
-use candle_transformers::object_detection::{non_maximum_suppression, Bbox, KeyPoint};
+use candle_transformers::object_detection::{Bbox, KeyPoint, non_maximum_suppression};
 use opencv::core::{flip, MatTraitConst, Point, Rect, Scalar, Size};
 use opencv::imgproc::resize;
 use opencv::prelude::*;
 use opencv::videoio::VideoCapture;
 use opencv::{highgui, imgproc, videoio};
+use crate::camera;
+use crate::key_constants::{ESCAPE_KEY, NINE_KEY, ZERO_KEY};
 
 use crate::model::{Multiples, YoloV8Pose};
-
-const MAX_CAM_INDEX: i32 = 10;
 
 const KP_CONNECTIONS: [(usize, usize); 16] = [
     (0, 1),
@@ -65,7 +65,7 @@ impl PoseEstimator {
         let model = YoloV8Pose::load(vb, multiples, 1, (17, 3))?;
         println!("Model loaded");
 
-        let camera_index_list = list_cameras()?;
+        let camera_index_list = camera::list_cameras()?;
         println!("Found camera list {:?}", camera_index_list);
 
         Ok(PoseEstimator {
@@ -134,14 +134,14 @@ impl PoseEstimator {
                 highgui::imshow("window", &flipped_image)?;
             }
             let key = highgui::wait_key(10)?;
-            if key > 0 && key != 255 {
-                if key >= 48 && key <= 57 {
-                    self.active_cam = (key - 48) as usize % self.camera_index_list.len();
-                    println!("Switching to camera {}", self.active_cam)
-                } else {
-                    break;
-                }
+            if key == ESCAPE_KEY {
+                break;
             }
+            else if key >= ZERO_KEY && key <= NINE_KEY {
+                self.active_cam = (key - 48) as usize % self.camera_index_list.len();
+                println!("Switching to camera {}", self.active_cam)
+            }
+
         }
         Ok(())
     }
@@ -245,16 +245,4 @@ impl PoseEstimator {
         }
         Ok(())
     }
-}
-
-fn list_cameras() -> anyhow::Result<Vec<i32>> {
-    let mut camera_list = Vec::with_capacity(MAX_CAM_INDEX as usize);
-    for index in 0..MAX_CAM_INDEX {
-        let cam = VideoCapture::new(index, videoio::CAP_V4L2)?;
-        if VideoCapture::is_opened(&cam)? {
-            camera_list.push(index);
-        }
-    }
-    camera_list.shrink_to_fit();
-    Ok(camera_list)
 }

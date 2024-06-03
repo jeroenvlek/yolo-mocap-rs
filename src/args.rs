@@ -28,5 +28,5 @@ pub struct Args {
 
     /// The index of the camera to be uses, e.g. 0, 1, 2...
     #[arg(long, default_value_t = 2)]
-    pub cam: usize,
+    pub active_cam: usize,
 }
