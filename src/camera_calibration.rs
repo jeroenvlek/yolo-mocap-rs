@@ -16,11 +16,14 @@ use opencv::prelude::*;
 use crate::camera::list_cameras;
 use crate::key_constants::ESCAPE_KEY;
 
-const PATTERN_HEIGHT: i32 = 6;
+const PATTERN_HEIGHT: i32 = 5;
+const PATTERN_WIDTH: i32 = 5;
+const NECESSARY_FRAMES: i32 = 10;
 
-const PATTERN_WIDTH: i32 = 9;
+const WAIT_CORRECT_FRAME: i32 = 2000;
+const WAIT_INCORRECT_FRAME: i32 = 1;
 
-pub fn estimate_camera_matrix(active_cam: usize) -> anyhow::Result<()> {
+pub fn estimate_camera_matrix(active_cam: usize, frame_width: i32, frame_height: i32) -> anyhow::Result<()> {
     let pattern_size = Size::new(PATTERN_WIDTH, PATTERN_HEIGHT);
     let grid_points: Vector<Point3f> =  generate_grid_points(pattern_size);
 
@@ -34,12 +37,11 @@ pub fn estimate_camera_matrix(active_cam: usize) -> anyhow::Result<()> {
         panic!("Unable to open default camera!");
     }
 
-    // Prepare to display frames
     highgui::named_window("Calibration", highgui::WINDOW_AUTOSIZE)?;
-
-    let mut frame_size = Size::new(640, 480);
-
-    loop {
+    let mut frame_size = Size::new(frame_width, frame_height);
+    let mut correct_frames = 0;
+    let mut pause_time_ms = WAIT_INCORRECT_FRAME;
+    while correct_frames < NECESSARY_FRAMES {
         let mut frame = Mat::default();
         cam.read(&mut frame)?;
         if frame.empty() {
@@ -77,14 +79,21 @@ pub fn estimate_camera_matrix(active_cam: usize) -> anyhow::Result<()> {
 
             // Draw and display the corners
             draw_chessboard_corners(&mut frame, pattern_size, &corners, found)?;
+
+            correct_frames += 1;
+            println!("Found pattern! Correct frames: {}", correct_frames);
+
+            // let's wait a bit longer to reorient the pattern
+            pause_time_ms = WAIT_CORRECT_FRAME;
+        } else {
+            println!("No pattern in the frame. Correct frames {}", correct_frames);
+            pause_time_ms = WAIT_INCORRECT_FRAME;
         }
 
         highgui::imshow("Calibration", &frame)?;
 
-        // Wait for a key press for 1ms
-        let key = highgui::wait_key(1)?;
+        let key = highgui::wait_key(pause_time_ms)?;
         if key == ESCAPE_KEY {
-            // ESC key to break
             break;
         }
     }
@@ -92,26 +101,26 @@ pub fn estimate_camera_matrix(active_cam: usize) -> anyhow::Result<()> {
     highgui::destroy_all_windows()?;
 
     // Perform camera calibration if sufficient points were collected
-    if object_points.len() > 0 {
-        let mut camera_matrix = Mat::default();
-        let mut dist_coeffs = Mat::default();
-        let mut rvecs = VectorOfMat::new();
-        let mut tvecs = VectorOfMat::new();
+    if correct_frames >= NECESSARY_FRAMES {
+        let mut intrinisic_camera_matrix = Mat::default();
+        let mut distortion_coeffs = Mat::default();
+        let mut rotation_vecs = VectorOfMat::new();
+        let mut translation_vecs = VectorOfMat::new();
 
         calibrate_camera(
             &object_points,
             &image_points,
-            frame_size, // Replace with your actual frame size
-            &mut camera_matrix,
-            &mut dist_coeffs,
-            &mut rvecs,
-            &mut tvecs,
+            frame_size,
+            &mut intrinisic_camera_matrix,
+            &mut distortion_coeffs,
+            &mut rotation_vecs,
+            &mut translation_vecs,
             0,
             TermCriteria::default()?,
         )?;
 
-        println!("Camera Matrix:\n{:?}", camera_matrix);
-        println!("Distortion Coefficients:\n{:?}", dist_coeffs);
+        println!("Camera Matrix:\n{:?}", intrinisic_camera_matrix);
+        println!("Distortion Coefficients:\n{:?}", distortion_coeffs);
     } else {
         println!("Not enough data for calibration.");
     }

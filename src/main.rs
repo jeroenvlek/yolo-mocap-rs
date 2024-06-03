@@ -22,6 +22,7 @@ fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     println!("Args: {:?}", args);
 
+    estimate_camera_matrix(args.active_cam, 640, 480)?;
     // let rt = runtime::Runtime::new()?;
     // let model_path = rt.block_on(download_model(&args))?;
     //
@@ -34,7 +35,6 @@ fn main() -> anyhow::Result<()> {
     //     args.nms_threshold,
     // )?;
     // pose_estimator.run_estimation_loop()?;
-    estimate_camera_matrix(args.active_cam)?;
 
     Ok(())
 }
