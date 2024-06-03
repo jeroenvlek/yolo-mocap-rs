@@ -1,15 +1,15 @@
 use std::path::PathBuf;
 
-use candle_core::{Device, DType, IndexOp, Module, Tensor};
+use crate::camera;
+use crate::key_constants::{ESCAPE_KEY, NINE_KEY, ZERO_KEY};
+use candle_core::{DType, Device, IndexOp, Module, Tensor};
 use candle_nn::VarBuilder;
-use candle_transformers::object_detection::{Bbox, KeyPoint, non_maximum_suppression};
+use candle_transformers::object_detection::{non_maximum_suppression, Bbox, KeyPoint};
 use opencv::core::{flip, MatTraitConst, Point, Rect, Scalar, Size};
 use opencv::imgproc::resize;
 use opencv::prelude::*;
 use opencv::videoio::VideoCapture;
 use opencv::{highgui, imgproc, videoio};
-use crate::camera;
-use crate::key_constants::{ESCAPE_KEY, NINE_KEY, ZERO_KEY};
 
 use crate::model::{Multiples, YoloV8Pose};
 
@@ -136,12 +136,10 @@ impl PoseEstimator {
             let key = highgui::wait_key(10)?;
             if key == ESCAPE_KEY {
                 break;
-            }
-            else if key >= ZERO_KEY && key <= NINE_KEY {
+            } else if key >= ZERO_KEY && key <= NINE_KEY {
                 self.active_cam = (key - 48) as usize % self.camera_index_list.len();
                 println!("Switching to camera {}", self.active_cam)
             }
-
         }
         Ok(())
     }

@@ -1,6 +1,6 @@
-use opencv::videoio::VideoCapture;
-use opencv::videoio;
 use opencv::hub_prelude::VideoCaptureTraitConst;
+use opencv::videoio;
+use opencv::videoio::VideoCapture;
 
 const MAX_CAM_INDEX: i32 = 10;
 

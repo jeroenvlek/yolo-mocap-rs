@@ -6,23 +6,25 @@ use hf_hub::api::tokio::Api;
 use opencv::prelude::*;
 use tokio::runtime;
 
-use args::Args;
 use crate::camera_calibration::estimate_camera_matrix;
+use args::Args;
 
 use crate::pose_estimator::PoseEstimator;
 
 mod args;
+mod camera;
+mod camera_calibration;
+mod key_constants;
 mod model;
 mod pose_estimator;
-mod camera_calibration;
-mod camera;
-mod key_constants;
 
 fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     println!("Args: {:?}", args);
 
-    estimate_camera_matrix(args.active_cam, 640, 480)?;
+    let (intrinsic_camera_matrix, extrinsic_camera_matrix) =
+        estimate_camera_matrix(args.active_cam, 640, 480)?;
+
     // let rt = runtime::Runtime::new()?;
     // let model_path = rt.block_on(download_model(&args))?;
     //

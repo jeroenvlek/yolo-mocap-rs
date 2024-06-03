@@ -1,20 +1,20 @@
+use crate::camera::list_cameras;
+use crate::key_constants::ESCAPE_KEY;
+use opencv::calib3d::{draw_chessboard_corners, rodrigues};
+use opencv::core::{Point2f, Size_, TermCriteria, CV_32F};
+use opencv::prelude::*;
 use opencv::{
     calib3d::{
-        CALIB_CB_ADAPTIVE_THRESH, CALIB_CB_NORMALIZE_IMAGE, calibrate_camera,
-        find_chessboard_corners,
+        calibrate_camera, find_chessboard_corners, CALIB_CB_ADAPTIVE_THRESH,
+        CALIB_CB_NORMALIZE_IMAGE,
     },
     core::{Mat, Point3f, Size, TermCriteria_Type, Vector},
     highgui,
-    imgproc::{COLOR_BGR2GRAY, corner_sub_pix, cvt_color},
+    imgproc::{corner_sub_pix, cvt_color, COLOR_BGR2GRAY},
     prelude::*,
     types::VectorOfMat,
     videoio,
 };
-use opencv::calib3d::draw_chessboard_corners;
-use opencv::core::{Point2f, Size_, TermCriteria};
-use opencv::prelude::*;
-use crate::camera::list_cameras;
-use crate::key_constants::ESCAPE_KEY;
 
 const PATTERN_HEIGHT: i32 = 5;
 const PATTERN_WIDTH: i32 = 5;
@@ -23,9 +23,13 @@ const NECESSARY_FRAMES: i32 = 10;
 const WAIT_CORRECT_FRAME: i32 = 2000;
 const WAIT_INCORRECT_FRAME: i32 = 1;
 
-pub fn estimate_camera_matrix(active_cam: usize, frame_width: i32, frame_height: i32) -> anyhow::Result<()> {
+pub fn estimate_camera_matrix(
+    active_cam: usize,
+    frame_width: i32,
+    frame_height: i32,
+) -> anyhow::Result<(Mat, Mat)> {
     let pattern_size = Size::new(PATTERN_WIDTH, PATTERN_HEIGHT);
-    let grid_points: Vector<Point3f> =  generate_grid_points(pattern_size);
+    let grid_points: Vector<Point3f> = generate_grid_points(pattern_size);
 
     let mut object_points = VectorOfMat::new();
     let mut image_points = VectorOfMat::new();
@@ -61,8 +65,11 @@ pub fn estimate_camera_matrix(active_cam: usize, frame_width: i32, frame_height:
         )?;
 
         if found {
-            let criteria =
-                TermCriteria::new(TermCriteria_Type::COUNT as i32 + TermCriteria_Type::EPS as i32, 30, 0.001)?;
+            let criteria = TermCriteria::new(
+                TermCriteria_Type::COUNT as i32 + TermCriteria_Type::EPS as i32,
+                30,
+                0.001,
+            )?;
             corner_sub_pix(
                 &gray,
                 &mut corners,
@@ -100,36 +107,40 @@ pub fn estimate_camera_matrix(active_cam: usize, frame_width: i32, frame_height:
 
     highgui::destroy_all_windows()?;
 
-    // Perform camera calibration if sufficient points were collected
-    if correct_frames >= NECESSARY_FRAMES {
-        let mut intrinisic_camera_matrix = Mat::default();
-        let mut distortion_coeffs = Mat::default();
-        let mut rotation_vecs = VectorOfMat::new();
-        let mut translation_vecs = VectorOfMat::new();
-
-        calibrate_camera(
-            &object_points,
-            &image_points,
-            frame_size,
-            &mut intrinisic_camera_matrix,
-            &mut distortion_coeffs,
-            &mut rotation_vecs,
-            &mut translation_vecs,
-            0,
-            TermCriteria::default()?,
-        )?;
-
-        println!("Camera Matrix:\n{:?}", intrinisic_camera_matrix);
-        println!("Distortion Coefficients:\n{:?}", distortion_coeffs);
-    } else {
-        println!("Not enough data for calibration.");
+    if correct_frames < NECESSARY_FRAMES {
+        return Err(anyhow::anyhow!("Not enough data for calibration."));
     }
 
-    Ok(())
+    let mut intrinsic_camera_matrix = Mat::default();
+    let mut distortion_coeffs = Mat::default();
+    let mut rotation_vecs = VectorOfMat::new();
+    let mut translation_vecs = VectorOfMat::new();
+
+    calibrate_camera(
+        &object_points,
+        &image_points,
+        frame_size,
+        &mut intrinsic_camera_matrix,
+        &mut distortion_coeffs,
+        &mut rotation_vecs,
+        &mut translation_vecs,
+        0,
+        TermCriteria::default()?,
+    )?;
+
+    let extrinsic_camera_matrix =
+        extrinsic_matrix(&rotation_vecs.get(0)?, &translation_vecs.get(0)?)?;
+
+    println!("Intrinsic camera matrix:\n{:?}", intrinsic_camera_matrix);
+    println!("Extrinsic camera matrix: \n{:?}", extrinsic_camera_matrix);
+    println!("Distortion Coefficients:\n{:?}", distortion_coeffs);
+
+    Ok((intrinsic_camera_matrix, extrinsic_camera_matrix))
 }
 
 fn generate_grid_points(pattern_size: Size_<i32>) -> Vector<Point3f> {
-    let mut grid_points = Vector::with_capacity((pattern_size.height * pattern_size.width) as usize);
+    let mut grid_points =
+        Vector::with_capacity((pattern_size.height * pattern_size.width) as usize);
     const Z: f32 = 0.0;
     for i in 0..pattern_size.height {
         for j in 0..pattern_size.width {
@@ -137,4 +148,31 @@ fn generate_grid_points(pattern_size: Size_<i32>) -> Vector<Point3f> {
         }
     }
     grid_points
+}
+
+/// Generate extrinsic matrix from rotation and translation vectors
+fn extrinsic_matrix(rotation_vec: &Mat, translation_vec: &Mat) -> opencv::Result<Mat> {
+    // Convert the rotation vector to a rotation matrix using Rodrigues formula
+    let mut rotation_matrix = Mat::default();
+    rodrigues(rotation_vec, &mut rotation_matrix, &mut Mat::default())?;
+
+    // Create an empty 4x4 matrix for the extrinsic matrix
+    let mut extrinsic_matrix = Mat::zeros(4, 4, CV_32F)?.to_mat()?;
+
+    // Set the top-left 3x3 part to the rotation matrix
+    {
+        let mut roi = extrinsic_matrix.roi_mut(opencv::core::Rect::new(0, 0, 3, 3))?;
+        rotation_matrix.copy_to(&mut roi)?;
+    }
+
+    // Set the top-right 3x1 part to the translation vector
+    {
+        let mut roi = extrinsic_matrix.roi_mut(opencv::core::Rect::new(3, 0, 1, 3))?;
+        translation_vec.copy_to(&mut roi)?;
+    }
+
+    // Set the bottom-right element to 1
+    *extrinsic_matrix.at_2d_mut(3, 3)? = 1.0;
+
+    Ok(extrinsic_matrix)
 }
