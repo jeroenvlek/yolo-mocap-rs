@@ -1,7 +1,7 @@
 use crate::camera::list_cameras;
 use crate::key_constants::ESCAPE_KEY;
 use opencv::calib3d::{draw_chessboard_corners, rodrigues};
-use opencv::core::{Point2f, Size_, TermCriteria, CV_32F};
+use opencv::core::{Point2f, Size_, TermCriteria, CV_32F, CV_64F, flip};
 use opencv::prelude::*;
 use opencv::{
     calib3d::{
@@ -51,6 +51,10 @@ pub fn estimate_camera_matrix(
         if frame.empty() {
             break;
         }
+        let mut flipped_image = Mat::default();
+        flip(&frame, &mut flipped_image, 1)?;
+        frame = flipped_image;
+
         frame_size = frame.size()?;
 
         let mut gray = Mat::default();
@@ -157,7 +161,7 @@ fn extrinsic_matrix(rotation_vec: &Mat, translation_vec: &Mat) -> opencv::Result
     rodrigues(rotation_vec, &mut rotation_matrix, &mut Mat::default())?;
 
     // Create an empty 4x4 matrix for the extrinsic matrix
-    let mut extrinsic_matrix = Mat::zeros(4, 4, CV_32F)?.to_mat()?;
+    let mut extrinsic_matrix = Mat::zeros(4, 4, CV_64F)?.to_mat()?;
 
     // Set the top-left 3x3 part to the rotation matrix
     {
@@ -176,3 +180,4 @@ fn extrinsic_matrix(rotation_vec: &Mat, translation_vec: &Mat) -> opencv::Result
 
     Ok(extrinsic_matrix)
 }
+
