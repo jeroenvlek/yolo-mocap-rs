@@ -13,3 +13,4 @@ clap = { version = "4.5.3", features = ["derive"] }
 tokio = { version = "1.37.0", features = ["full"] }
 candle-transformers = { version = "0.5.0", features = ["cuda"] }
 opencv = { version = "0.91.3", features = ["videoio", "highgui"] }
+vecmath = "1.0.0"

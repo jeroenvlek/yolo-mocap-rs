@@ -1,7 +1,7 @@
 use crate::camera::list_cameras;
 use crate::key_constants::ESCAPE_KEY;
 use opencv::calib3d::{draw_chessboard_corners, rodrigues};
-use opencv::core::{Point2f, Size_, TermCriteria, CV_32F, CV_64F, flip};
+use opencv::core::{flip, Point2f, Size_, TermCriteria, CV_32F, CV_64F};
 use opencv::prelude::*;
 use opencv::{
     calib3d::{
@@ -15,6 +15,7 @@ use opencv::{
     types::VectorOfMat,
     videoio,
 };
+use vecmath::{Matrix3, Matrix4};
 
 const PATTERN_HEIGHT: i32 = 5;
 const PATTERN_WIDTH: i32 = 5;
@@ -133,7 +134,7 @@ pub fn estimate_camera_matrix(
     )?;
 
     let extrinsic_camera_matrix =
-        extrinsic_matrix(&rotation_vecs.get(0)?, &translation_vecs.get(0)?)?;
+        compose_extrinsic_matrix(&rotation_vecs.get(0)?, &translation_vecs.get(0)?)?;
 
     println!("Intrinsic camera matrix:\n{:?}", intrinsic_camera_matrix);
     println!("Extrinsic camera matrix: \n{:?}", extrinsic_camera_matrix);
@@ -155,7 +156,7 @@ fn generate_grid_points(pattern_size: Size_<i32>) -> Vector<Point3f> {
 }
 
 /// Generate extrinsic matrix from rotation and translation vectors
-fn extrinsic_matrix(rotation_vec: &Mat, translation_vec: &Mat) -> opencv::Result<Mat> {
+fn compose_extrinsic_matrix(rotation_vec: &Mat, translation_vec: &Mat) -> opencv::Result<Mat> {
     // Convert the rotation vector to a rotation matrix using Rodrigues formula
     let mut rotation_matrix = Mat::default();
     rodrigues(rotation_vec, &mut rotation_matrix, &mut Mat::default())?;
@@ -181,3 +182,36 @@ fn extrinsic_matrix(rotation_vec: &Mat, translation_vec: &Mat) -> opencv::Result
     Ok(extrinsic_matrix)
 }
 
+pub fn mat_to_matrix4<T>(mat: &Mat) -> opencv::Result<Matrix4<T>>
+where
+    T: DataType + Default + Copy,
+{
+    assert_eq!(mat.size()?.width, 4);
+    assert_eq!(mat.size()?.height, 4);
+
+    let mut data = [[T::default(); 4]; 4];
+    for i in 0..4 {
+        for j in 0..4 {
+            data[i][j] = *mat.at_2d::<T>(i as i32, j as i32)?;
+        }
+    }
+
+    Ok(data)
+}
+
+pub fn mat_to_matrix3<T>(mat: &Mat) -> opencv::Result<Matrix3<T>>
+where
+    T: DataType + Default + Copy,
+{
+    assert_eq!(mat.size()?.width, 3);
+    assert_eq!(mat.size()?.height, 3);
+
+    let mut data = [[T::default(); 3]; 3];
+    for i in 0..3 {
+        for j in 0..3 {
+            data[i][j] = *mat.at_2d::<T>(i as i32, j as i32)?;
+        }
+    }
+
+    Ok(data)
+}

@@ -6,7 +6,7 @@ use hf_hub::api::tokio::Api;
 use opencv::prelude::*;
 use tokio::runtime;
 
-use crate::camera_calibration::estimate_camera_matrix;
+use crate::camera_calibration::{estimate_camera_matrix, mat_to_matrix3, mat_to_matrix4};
 use args::Args;
 
 use crate::pose_estimator::PoseEstimator;
@@ -24,6 +24,12 @@ fn main() -> anyhow::Result<()> {
 
     let (intrinsic_camera_matrix, extrinsic_camera_matrix) =
         estimate_camera_matrix(args.active_cam, 640, 480)?;
+
+    let intrinsic_gl = mat_to_matrix3::<f64>(&intrinsic_camera_matrix)?;
+    let extrinsic_gl = mat_to_matrix4::<f64>(&extrinsic_camera_matrix)?;
+
+    println!("Intrinsic: \n{:?}", intrinsic_gl);
+    println!("Extrinsic: \n{:?}", extrinsic_gl);
 
     // let rt = runtime::Runtime::new()?;
     // let model_path = rt.block_on(download_model(&args))?;
