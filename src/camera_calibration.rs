@@ -1,7 +1,9 @@
+use std::ops::{Add, Div};
+use candle_core::quantized::k_quants::matmul;
 use crate::camera::list_cameras;
 use crate::key_constants::ESCAPE_KEY;
 use opencv::calib3d::{draw_chessboard_corners, rodrigues};
-use opencv::core::{flip, Point2f, Size_, TermCriteria, CV_32F, CV_64F};
+use opencv::core::{flip, Point2f, Size_, TermCriteria, CV_32F, CV_64F, SVD, add, divide, multiply, mul_mat_mat, gemm};
 use opencv::prelude::*;
 use opencv::{
     calib3d::{
@@ -15,6 +17,7 @@ use opencv::{
     types::VectorOfMat,
     videoio,
 };
+use opencv::gapi::mul;
 use vecmath::{Matrix3, Matrix4};
 
 const PATTERN_HEIGHT: i32 = 5;
@@ -84,9 +87,9 @@ pub fn estimate_camera_matrix(
             )?;
 
             // Collect object points and image points
-            let mut objp_mat = Mat::from_slice_2d(&[&grid_points])?;
+            let objp_mat = Mat::from_slice_2d(&[&grid_points])?;
             object_points.push(objp_mat);
-            let mut corners_mat = Mat::from_slice_2d(&[&corners])?;
+            let corners_mat = Mat::from_slice_2d(&[&corners])?;
             image_points.push(corners_mat);
 
             // Draw and display the corners
@@ -155,8 +158,75 @@ fn generate_grid_points(pattern_size: Size_<i32>) -> Vector<Point3f> {
     grid_points
 }
 
-/// Generate extrinsic matrix from rotation and translation vectors
-fn compose_extrinsic_matrix(rotation_vec: &Mat, translation_vec: &Mat) -> opencv::Result<Mat> {
+/// Convert rotation vectors to rotation matrices
+fn rotation_vecs_to_matrices(rotation_vecs: &VectorOfMat) -> anyhow::Result<Vector<Mat>> {
+    let mut rotation_matrices = Vector::new();
+    for i in 0..rotation_vecs.len() {
+        let rotation_vec = rotation_vecs.get(i)?;
+        let mut rotation_matrix = Mat::default();
+        rodrigues(&rotation_vec, &mut rotation_matrix, &mut Mat::default())?;
+        rotation_matrices.push(rotation_matrix);
+    }
+    Ok(rotation_matrices)
+}
+
+/// Average rotation matrices using Singular Value Decomposition (SVD)
+fn average_rotation_matrices(rotation_matrices: &Vector<Mat>) -> anyhow::Result<Mat> {
+    let size = rotation_matrices.get(0)?.size()?;
+    let mut avg_rotation_matrix = Mat::zeros(size.height, size.width, CV_64F)?;
+    for rotation_matrix in rotation_matrices {
+        avg_rotation_matrix = (avg_rotation_matrix + rotation_matrix).into_result()?;
+    }
+
+    avg_rotation_matrix = (avg_rotation_matrix / (rotation_matrices.len() as f64)).into_result()?;
+
+    // Use SVD to ensure the resulting matrix is a proper rotation matrix
+    let mut w = Mat::default();
+    let mut u = Mat::default();
+    let mut vt = Mat::default();
+    SVD::compute_ext(&avg_rotation_matrix.to_mat()?, &mut w, &mut u, &mut vt, 0)?;
+
+    let nearest_rotation_matrix = (u * vt).into_result()?.to_mat()?;
+
+    Ok(nearest_rotation_matrix)
+}
+
+// Convert the averaged rotation matrix back to a rotation vector
+fn rotation_matrix_to_vector(rotation_matrix: &Mat) -> anyhow::Result<Mat> {
+    let mut rotation_vec = Mat::default();
+    rodrigues(&rotation_matrix, &mut rotation_vec, &mut Mat::default())?;
+    Ok(rotation_vec)
+}
+
+// Average the translation vectors
+fn average_translation_vectors(translation_vecs: &VectorOfMat) -> anyhow::Result<Mat> {
+    let size = translation_vecs.get(0)?.size()?;
+    let mut avg_translation = Mat::zeros(size.height, size.width, CV_64F)?;
+    for translation_vec in translation_vecs.iter() {
+        avg_translation = (avg_translation + translation_vec).into_result()?;
+    }
+    avg_translation = (avg_translation / (translation_vecs.len() as f64)).into_result()?;
+    Ok(avg_translation.to_mat()?)
+}
+
+fn compute_extrinsic_matrix(rotation_vecs: &VectorOfMat, translation_vecs: &VectorOfMat) -> anyhow::Result<Mat> {
+    // Convert rotation vectors to matrices
+    let rotation_matrices = rotation_vecs_to_matrices(rotation_vecs)?;
+
+    // Average the rotation matrices
+    let avg_rotation_matrix = average_rotation_matrices(&rotation_matrices)?;
+
+    // Convert the averaged rotation matrix back to a rotation vector
+    let avg_rotation_vec = rotation_matrix_to_vector(&avg_rotation_matrix)?;
+
+    // Average the translation vectors
+    let avg_translation_vec = average_translation_vectors(translation_vecs)?;
+
+    // Compose the extrinsic matrix
+    compose_extrinsic_matrix(&avg_rotation_vec, &avg_translation_vec)
+}
+
+fn compose_extrinsic_matrix(rotation_vec: &Mat, translation_vec: &Mat) -> anyhow::Result<Mat> {
     // Convert the rotation vector to a rotation matrix using Rodrigues formula
     let mut rotation_matrix = Mat::default();
     rodrigues(rotation_vec, &mut rotation_matrix, &mut Mat::default())?;
@@ -181,6 +251,8 @@ fn compose_extrinsic_matrix(rotation_vec: &Mat, translation_vec: &Mat) -> opencv
 
     Ok(extrinsic_matrix)
 }
+
+
 
 pub fn mat_to_matrix4<T>(mat: &Mat) -> opencv::Result<Matrix4<T>>
 where
